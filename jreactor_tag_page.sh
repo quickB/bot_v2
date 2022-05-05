@@ -35,6 +35,7 @@ fi
 
 
 #удаляем картинки с прошлого запроса
+#надо потом переделать чтоб чистил после ответа пользователю. но для дебага пусть остаются
 rm ./image/*
 rm ./image/gif/*
 rm ./image/last/*
@@ -44,7 +45,6 @@ rm ./pre_image/gif/*
 
 #функция отрезающая вотермарк реактора (нижние 15 пикселей)
 function cut15 () {
-	#size=$(identify $1 | awk '{print $7}' | sed -e 's/B//g s/K//g s/M//g' )
 	size=$(wc -c $1 | awk '{print $1}')
 	x=$(identify $1 | awk '{print $4}' | awk -Fx '{print $2}' | awk -F+ '{print $1}')
 	z=$(identify $1 | awk '{print $4}' | awk -Fx '{print $1}')
@@ -53,7 +53,6 @@ function cut15 () {
 	if [ $size -gt 5242880 ]
 	then
 		convert $1 -crop ${z}x${y}+0+0 image/doc/$filename
-		#mv ./pre_image/$filename ./pre_image/to_big$filename
 	else
 		convert $1 -crop ${z}x${y}+0+0 image/$filename
 	fi
@@ -69,25 +68,30 @@ function cut15gif () {
 
 
 #тут делаем проверку на наличие переадресации на поддомен
-joy_domain='joyreactor.cc'
-
-request_tag_domain=$(curl joyreactor.cc/tag/$1/new | grep -o "http-equiv=\"refresh\"")
+#задаём домен для поиска по тегу
 tag_domain='joyreactor.cc'
 
+#проверяем нет ли переадресации на поддомен
+request_tag_domain=$(curl joyreactor.cc/tag/$1/new | grep -o "http-equiv=\"refresh\"")
+
+#если есть, подставляем поддомен для поиска по тегу
 if [ "$request_tag_domain" ]
 then
-        tag_domain=$(curl $joy_domain/tag/$1/new | grep -Po "http:.*?(?=\")" | awk -F/ '{print $3}')
-	joy_domain='reactor.cc'
+        tag_domain=$(curl joyreactor.cc/tag/$1/new | grep -Po "http:.*?(?=\")" | awk -F/ '{print $3}')
 fi
 
+#выясняем сколько всего страниц по тегу
 last_page=$(curl $tag_domain/tag/$1/new | grep -Po "current'>\d+" | sed "s/current'>//")
 
+#берём рандомную страницу. если с количеством страниц не получилось, то будет использована первая (устарело)
 page=1
 if [ $last_page -gt 0 ]
 then
 	page=$(shuf -i 1-$last_page -n 1)
 fi
 
+#ссылки на контент на основном домене и поддоменах. тут если переадресация на поддомен была, то подставляется своя строка поиска
+#запросы тут просто сохраняют в временный файл ссылки на контент из постов (пока это фото и гиф)
 if [ "$request_tag_domain" ]
 then
 	curl $tag_domain/tag/$1/new/$page | grep -oP 'http:\/\/img\d+.reactor.cc\/pics\/post\/full\/\S+?(?=")' | sed -e 's/<//g; s/\/>//g; s/img src=//g; s/"//g' > url_list.temp
@@ -95,11 +99,22 @@ else
 	curl $tag_domain/tag/$1/new/$page | grep -oP '<img\ssrc="http:\/\/img\d+.joyreactor.cc\/pics\/post\/\S+?(?=")' | sed -e 's/<//g; s/\/>//g; s/img src=//g; s/"//g' > url_list.temp
 fi
 
+#счетчики картинок и гифок для нумерации файлов
 count=0
 gif_count=0
+
+#картинки в итоге распихиваются по альбомам. в один альбом влезает только 10 изображений
+#тут у меня сохранённые картинки именуются по правилу:
+#префикс-счетчик
+#не помню почему такую схему выбрал
+#файлы с префиксом А пойдут в первый альбом, с префиксом В во второй, с С в третий и так далее
+#соответственно с каждым десятком файлов префикс меняется
+#вообще мне не нравится и очень громоздко, надо переделать на числа и циклом, а не вот это вот всё
+#пока поддерживается только 70 картинок, хотя попадались страницы где было больше 120. переделаю позже
 prefix=A
 for var in $(cat url_list.temp)
 	do
+	#тут гифки сохраняются в отделюную папку и в альбомы не попадают
 	ifgif=$(echo ${var:$((${#var}-3)):3})
 	gif='gif'
 	if [ $ifgif = $gif ]
@@ -117,8 +132,8 @@ for var in $(cat url_list.temp)
 		then
 			prefix=D
 		elif [ $count -gt 39 ] && [ $count -lt 50 ]
-	        then
-      			prefix=E
+	  then
+    	prefix=E
 		elif [ $count -gt 49 ] && [ $count -lt 60 ]
 		then
 			prefix=F
@@ -131,6 +146,7 @@ for var in $(cat url_list.temp)
 	fi
 done
 
+#срезаем 15 пикселей со скаченных картинок, если они есть
 file_list=$(find ./pre_image -maxdepth 1 -type f)
 if [ "file_list" ]
 then
@@ -140,6 +156,7 @@ then
 	done
 fi
 
+#срезаем 15 пикселей с гифок, если они есть
 gif_list=$(find ./pre_image/gif -maxdepth 1 -type f)
 if [ "$gif_list" ]
 then
@@ -149,4 +166,5 @@ then
 	done
 fi
 
+#возвращаем счетчик картинок
 echo $count
