@@ -173,9 +173,7 @@ async def echo_message(message: types.Message):
     mediaG = types.MediaGroup()
     peer = 'T'
     file_source = './image/'
-    #script_for_tag = 'bash jreactor_tag_page.sh 42'
     p = subprocess.Popen(['./jreactor_tag_page.sh {0}'.format(tag_for_curl)], stdout=subprocess.PIPE, shell=True)
-    #p = subprocess.Popen(script_for_tag, stdout=subprocess.PIPE, shell=True)
     count_files = int(p.stdout.readline())
     ost_cf = count_files % 10
     await message.answer("картинки загружены, распихиваю по альбомам")
