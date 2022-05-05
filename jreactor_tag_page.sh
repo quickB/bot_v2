@@ -74,15 +74,11 @@ joy_domain='joyreactor.cc'
 request_tag_domain=$(curl joyreactor.cc/tag/$1/new | grep -o "http-equiv=\"refresh\"")
 tag_domain='joyreactor.cc'
 
-echo $request_tag_domain >> temp/debug2.tmp
-
 if [ "$request_tag_domain" ]
 then
         tag_domain=$(curl $joy_domain/tag/$1/new | grep -Po "http:.*?(?=\")" | awk -F/ '{print $3}')
 	joy_domain='reactor.cc'
 fi
-
-echo $tag_domain >> temp/debug2.tmp
 
 last_page=$(curl $tag_domain/tag/$1/new | grep -Po "current'>\d+" | sed "s/current'>//")
 
@@ -92,7 +88,6 @@ then
 	page=$(shuf -i 1-$last_page -n 1)
 fi
 
-curl $tag_domain/tag/$1/new/$page > temp/3debug.tmp
 if [ "$request_tag_domain" ]
 then
 	curl $tag_domain/tag/$1/new/$page | grep -oP 'http:\/\/img\d+.reactor.cc\/pics\/post\/full\/\S+?(?=")' | sed -e 's/<//g; s/\/>//g; s/img src=//g; s/"//g' > url_list.temp
